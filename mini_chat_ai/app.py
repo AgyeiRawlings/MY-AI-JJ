@@ -17,7 +17,7 @@ import numpy as np
 st.set_page_config(page_title="Rawlings JJ - AI Assistant", layout="wide")
 st.title("Rawlings JJ - AI Assistant")
 
-# Load OpenAI API key from Streamlit secrets
+# Load OpenAI API key
 try:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
 except KeyError:
@@ -28,8 +28,8 @@ except KeyError:
 # VECTOR MEMORY INITIALIZATION
 # =========================
 if 'vector_index' not in st.session_state:
-    st.session_state.vector_index = faiss.IndexFlatL2(384)  # 384-dim embeddings (all-MiniLM-L6-v2)
-    st.session_state.documents = []  # Stores original text for retrieval
+    st.session_state.vector_index = faiss.IndexFlatL2(384)  # 384-dim embeddings
+    st.session_state.documents = []
 
 if 'model' not in st.session_state:
     st.session_state.model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -37,12 +37,11 @@ if 'model' not in st.session_state:
 # =========================
 # FUNCTIONS
 # =========================
-
 def chat_with_ai(user_input, use_memory=False):
     """Chat with OpenAI GPT models using updated API"""
     try:
         prompt = user_input
-        if use_memory and len(st.session_state.documents) > 0:
+        if use_memory and st.session_state.documents:
             # Retrieve top relevant knowledge
             query_embedding = st.session_state.model.encode([user_input])
             D, I = st.session_state.vector_index.search(np.array(query_embedding).astype('float32'), k=3)
@@ -51,19 +50,16 @@ def chat_with_ai(user_input, use_memory=False):
                 context = "\n---\n".join(retrieved_texts)
                 prompt = f"Use this knowledge to answer the question:\n\n{context}\n\nQuestion: {user_input}"
 
-        # Initialize OpenAI client explicitly (fixes 'proxies' error)
-        client = openai.OpenAI(api_key=openai.api_key)
-
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}]
         )
-        return response.choices[0].message.content
+        return response.choices[0].message['content']
     except Exception as e:
         return f"Error: {e}"
 
 def transcribe_audio(audio_file):
-    """Transcribe audio using OpenAI Whisper API"""
+    """Transcribe audio using Whisper API"""
     try:
         audio_file.seek(0)
         transcript = openai.audio.transcriptions.create(
@@ -75,15 +71,12 @@ def transcribe_audio(audio_file):
         return f"Error: {e}"
 
 def run_python_code(code):
-    """Execute Python code safely and return output"""
+    """Execute Python code safely"""
     try:
         with NamedTemporaryFile(delete=False, suffix=".py") as tmpfile:
             tmpfile.write(code.encode("utf-8"))
             tmpfile.flush()
-            result = subprocess.run(
-                ["python", tmpfile.name],
-                capture_output=True, text=True, timeout=10
-            )
+            result = subprocess.run(["python", tmpfile.name], capture_output=True, text=True, timeout=10)
         return result.stdout + result.stderr
     except Exception as e:
         return f"Error: {e}"
@@ -93,7 +86,7 @@ def ocr_image(image_file):
     try:
         img = Image.open(image_file)
         text = pytesseract.image_to_string(img)
-        return text if text.strip() != "" else "No text detected in image."
+        return text if text.strip() else "No text detected in image."
     except Exception as e:
         return f"OCR Error: {e}"
 
@@ -101,10 +94,8 @@ def extract_pdf_text(pdf_file):
     """Extract text from PDF"""
     try:
         pdf_reader = PyPDF2.PdfReader(pdf_file)
-        text = ""
-        for page in pdf_reader.pages:
-            text += page.extract_text() or ""
-        return text if text.strip() != "" else "No text detected in PDF."
+        text = "".join(page.extract_text() or "" for page in pdf_reader.pages)
+        return text if text.strip() else "No text detected in PDF."
     except Exception as e:
         return f"PDF Extraction Error: {e}"
 
@@ -118,12 +109,13 @@ def add_to_vector_memory(text):
 # SIDEBAR
 # =========================
 st.sidebar.title("Rawlings JJ Options")
-mode = st.sidebar.radio("Choose Mode:", ["Chat", "Transcribe Audio", "TTS", "Execute Python", "OCR / PDF Reader", "Vector Memory Chat"])
+mode = st.sidebar.radio("Choose Mode:", [
+    "Chat", "Transcribe Audio", "TTS", "Execute Python", "OCR / PDF Reader", "Vector Memory Chat"
+])
 
 # =========================
 # MAIN APP
 # =========================
-
 if mode == "Chat":
     st.subheader("Chat with Rawlings JJ")
     user_input = st.text_area("Type your message:")
@@ -135,10 +127,10 @@ if mode == "Chat":
 
 elif mode == "Transcribe Audio":
     st.subheader("Audio Transcription")
-    audio_file = st.file_uploader("Upload audio (mp3, wav, m4a)", type=["mp3","wav","m4a"])
+    audio_file = st.file_uploader("Upload audio (mp3, wav, m4a)", type=["mp3", "wav", "m4a"])
     if audio_file:
         st.audio(audio_file)
-        if st.button("Transcribe"):
+        if st.button("Transcribe Audio"):
             with st.spinner("Transcribing audio..."):
                 transcript = transcribe_audio(audio_file)
             st.text_area("Transcript:", value=transcript, height=200)
@@ -172,7 +164,7 @@ elif mode == "Execute Python":
 
 elif mode == "OCR / PDF Reader":
     st.subheader("OCR and PDF Text Extraction")
-    file_input = st.file_uploader("Upload Image or PDF", type=["png","jpg","jpeg","pdf"])
+    file_input = st.file_uploader("Upload Image or PDF", type=["png", "jpg", "jpeg", "pdf"])
     if file_input:
         if st.button("Extract Text"):
             with st.spinner("Extracting text..."):
@@ -190,7 +182,7 @@ elif mode == "OCR / PDF Reader":
 elif mode == "Vector Memory Chat":
     st.subheader("Chat with Rawlings JJ using Vector Memory")
     user_input = st.text_area("Ask a question or chat with memory:")
-    if st.button("Send"):
+    if st.button("Send Memory Chat"):
         if user_input.strip():
             with st.spinner("Getting memory-based response..."):
                 response = chat_with_ai(user_input, use_memory=True)
