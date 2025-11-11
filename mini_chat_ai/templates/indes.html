@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Local Chat AI</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="chat-container">
+    <div id="chat" class="chat-box"></div>
+    <input type="text" id="input" placeholder="Type a message..." autofocus
+           onkeypress="if(event.key==='Enter') sendMessage()">
+    <button onclick="sendMessage()">Send</button>
+</div>
+
+<script>
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+async function sendMessage() {
+    const input = document.getElementById("input");
+    const chat = document.getElementById("chat");
+    const msg = input.value.trim();
+    if(!msg) return;
+
+    chat.innerHTML += `<div class="message user">${escapeHtml(msg)}</div>`;
+    input.value = '';
+    input.disabled = true;
+
+    try {
+        const res = await fetch("/chat", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({message: msg})
+        });
+        if(!res.ok) throw new Error(res.statusText);
+        const data = await res.json();
+        chat.innerHTML += `<div class="message ai">${escapeHtml(data.reply)}</div>`;
+    } catch(e) {
+        chat.innerHTML += `<div class="message error">Error: ${escapeHtml(e.message)}</div>`;
+    }
+
+    input.disabled = false;
+    input.focus();
+    chat.scrollTop = chat.scrollHeight;
+}
+</script>
+</body>
+</html>
