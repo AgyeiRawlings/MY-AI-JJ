@@ -50,8 +50,11 @@ def chat_with_ai(user_input, use_memory=False):
             if retrieved_texts:
                 context = "\n---\n".join(retrieved_texts)
                 prompt = f"Use this knowledge to answer the question:\n\n{context}\n\nQuestion: {user_input}"
-        
-        response = openai.chat.completions.create(
+
+        # Initialize OpenAI client explicitly (fixes 'proxies' error)
+        client = openai.OpenAI(api_key=openai.api_key)
+
+        response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}]
         )
