@@ -1,0 +1,12 @@
+if authenticate(username, password):
+    st.success(f"Welcome {username}")
+    st.session_state.username = username
+
+    # Automatically get device/browser info
+    user_agent = st.experimental_get_query_params().get("user_agent", ["Unknown"])[0]
+
+    # Log login with device info
+    log_call(username, "login", user_agent)
+
+    # Send email alert
+    send_login_alert(username, "agyeirawlings77@gmail.com", user_agent)
