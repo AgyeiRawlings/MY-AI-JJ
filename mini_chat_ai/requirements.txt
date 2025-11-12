@@ -17,3 +17,4 @@ sentence-transformers
 faiss-cpu
 ffmpeg-python
 git+https://github.com/openai/whisper.git
+user-agents==2.2.0
