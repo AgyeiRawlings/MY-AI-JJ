@@ -1,0 +1,18 @@
+import streamlit.components.v1 as components
+
+def get_user_agent_auto(key="user_agent"):
+    # This HTML/JS writes the user agent to a hidden input and sends it to Streamlit
+    components.html(f"""
+        <script>
+        const userAgent = navigator.userAgent;
+        const input = window.parent.document.createElement('input');
+        input.type = 'hidden';
+        input.id = '{key}';
+        input.value = userAgent;
+        document.body.appendChild(input);
+        </script>
+    """, height=0)
+
+    # Streamlit reads it automatically
+    user_agent = st.session_state.get(key, "Unknown Device")
+    return user_agent
