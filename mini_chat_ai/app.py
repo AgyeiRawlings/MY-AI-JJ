@@ -11,11 +11,11 @@ import io
 import tempfile
 import smtplib
 from email.mime.text import MIMEText
-import streamlit.components.v1 as components
-from user_agents import parse
 import os
 import requests
 import pandas as pd
+import streamlit.components.v1 as components
+import json
 
 # ----------------------------
 # Logging Setup
@@ -135,23 +135,66 @@ Timestamp: {datetime.now()}
         logger.error(f"Failed to send login alert email: {e}")
 
 # ----------------------------
-# Device & Browser Info Capture
+# Real-Time User-Agent Capture
 # ----------------------------
 def capture_user_agent():
+    # Use session_state to store user-agent
     if "user_agent" not in st.session_state:
-        components.html("""
+        st.session_state.user_agent = None
+
+        js_code = """
         <script>
         const ua = navigator.userAgent;
-        document.querySelector('body').setAttribute('data-ua', ua);
+        const data = {ua: ua};
+        const streamlitEvent = new CustomEvent("sendUA", {detail: data});
+        window.parent.document.dispatchEvent(streamlitEvent);
+        </script>
+        """
+        components.html(js_code, height=0)
+
+        # Receive UA in Python
+        components.html("""
+        <script>
+        const sendUA = (ua) => {
+            document.querySelector('body').setAttribute('data-ua', ua);
+        };
         </script>
         """, height=0)
-        st.session_state.user_agent = "Unknown"
 
+    # Fallback if UA not yet set
     ua_string = st.session_state.get("user_agent", "Unknown")
-    ua = parse(ua_string)
-    browser = f"{ua.browser.family} {ua.browser.version_string}"
-    os_info = f"{ua.os.family} {ua.os.version_string}"
-    device = ua.device.family
+
+    # Detect OS
+    os_info = "Unknown OS"
+    if "Windows" in ua_string:
+        os_info = "Windows"
+    elif "Macintosh" in ua_string or "Mac OS X" in ua_string:
+        os_info = "Mac OS"
+    elif "Linux" in ua_string:
+        os_info = "Linux"
+    elif "Android" in ua_string:
+        os_info = "Android"
+    elif "iPhone" in ua_string or "iPad" in ua_string:
+        os_info = "iOS"
+
+    # Detect Browser
+    browser = "Unknown Browser"
+    if "Chrome" in ua_string and "Edge" not in ua_string:
+        browser = "Chrome"
+    elif "Firefox" in ua_string:
+        browser = "Firefox"
+    elif "Safari" in ua_string and "Chrome" not in ua_string:
+        browser = "Safari"
+    elif "Edge" in ua_string:
+        browser = "Edge"
+
+    # Detect Device
+    device = "PC"
+    if "Mobile" in ua_string or "iPhone" in ua_string or "Android" in ua_string:
+        device = "Mobile"
+    elif "iPad" in ua_string:
+        device = "Tablet"
+
     return browser, os_info, device
 
 # ----------------------------
@@ -231,11 +274,7 @@ elif choice == "Login":
                         buffered = io.BytesIO()
                         image.save(buffered, format="PNG")
                         buffered.seek(0)
-                        response = client.images.analyze(
-                            model="gpt-4.1-mini",
-                            image=buffered
-                        )
-                        messages.append({"role": "user", "content": f"[IMAGE ANALYSIS]\n{response['output_text']}"})
+                        messages.append({"role": "user", "content": "[IMAGE UPLOADED]"})
 
                     # Handle uploaded audio
                     if uploaded_audio:
